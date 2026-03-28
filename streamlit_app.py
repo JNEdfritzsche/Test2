@@ -1203,7 +1203,7 @@ def build_vis_nodes_edges(
             "id": rn,
             "label": rn,
             "title": (
-                f"<b>{rn}</b><br/>Person node<br/>{noise_title(rn, r.get('Noise Level', ''))}"
+                f"<b>{rn}</b><br/>Person node"
                 + (f"<br/>Role: {role}" if role else "")
                 + (f"<br/>Email: {email}" if email else "")
                 + (f"<br/>Phone: {phone}" if phone else "")
@@ -1628,7 +1628,7 @@ def _compute_default_xy_near_network(tray_df: pd.DataFrame) -> tuple[float | Non
         return cx + 140.0, cy
     return 200.0, 200.0
 
-def df_add_node(tray_df: pd.DataFrame, name: str, noise_level_text: str = "", x=None, y=None) -> tuple[pd.DataFrame, bool]:
+def df_add_node(tray_df: pd.DataFrame, name: str, x=None, y=None) -> tuple[pd.DataFrame, bool]:
     name = str(name).strip()
     if not name:
         return tray_df, False
@@ -1641,18 +1641,11 @@ def df_add_node(tray_df: pd.DataFrame, name: str, noise_level_text: str = "", x=
 
     if "RunName" not in df.columns:
         df["RunName"] = ""
-    if "Noise Level" not in df.columns:
-        df["Noise Level"] = ""
-
     if (df["RunName"].astype(str).str.strip() == name).any():
         return tray_df, False
 
     new_row = {col: "" for col in df.columns}
     new_row["RunName"] = name
-
-    nl_text = str(noise_level_text or "").strip()
-    if nl_text:
-        new_row["Noise Level"] = nl_text
 
     if (x is None or str(x).strip() == "") and (y is None or str(y).strip() == ""):
         dx, dy = _compute_default_xy_near_network(df)
@@ -1764,22 +1757,6 @@ def df_duplicate_nodes(tray_df: pd.DataFrame, source_names: list[str]) -> tuple[
         new_names.append(new_name)
     
     return df, new_names
-
-def df_set_node_noise_level(tray_df: pd.DataFrame, node: str, noise_level_text: str) -> tuple[pd.DataFrame, bool]:
-    node = str(node).strip()
-    df = tray_df.copy()
-    if "RunName" not in df.columns:
-        return tray_df, False
-    if "Noise Level" not in df.columns:
-        df["Noise Level"] = ""
-
-    mask = df["RunName"].astype(str).str.strip() == node
-    if not mask.any():
-        return tray_df, False
-
-    df.loc[mask, "Noise Level"] = str(noise_level_text or "").strip()
-    return df, True
-
 
 # ============================================================
 # Selection parsing helper (edge delete)
@@ -2569,84 +2546,6 @@ with tabG:
                 # Display warning if scale factor is 1.0
                 if st.session_state.scale_value == 1.0:
                     st.info("Scale factor is 1.0 — no change will occur")
-                
-                # Get noise levels for all selected nodes
-                noise_levels = []
-                node_noise_map = {}
-                for node_name in sel_nodes2:
-                    node_name = str(node_name).strip()
-                    tdf = st.session_state.tray_df
-                    row = tdf[tdf["RunName"].astype(str).str.strip() == node_name]
-                    if not row.empty:
-                        nl = str(row.iloc[0].get("Noise Level", "")).strip()
-                        noise_levels.append(nl)
-                        node_noise_map[node_name] = nl
-                
-                # Always show noise level editing (regardless of whether levels match)
-                st.markdown("**Edit Noise Level (All Selected)**")
-                all_same = noise_levels and all(nl == noise_levels[0] for nl in noise_levels)
-                if all_same:
-                    st.caption("All selected nodes have the same noise level.")
-                else:
-                    st.caption("Selected nodes have different noise levels.")
-                    with st.expander("Show current noise levels", expanded=False):
-                        for node_name in sel_nodes2:
-                            current_nl = node_noise_map.get(node_name, "(unknown)")
-                            st.write(f"• {node_name}: {current_nl if current_nl else '(blank)'}")
-                
-                preset_map = {
-                    "": "(leave as-is)",
-                    "1": "1",
-                    "2": "2",
-                    "1,2": "1,2",
-                    "2,1": "2,1",
-                    "3": "3",
-                    "4": "4",
-                    "3,4": "3,4",
-                    "4,3": "4,3",
-                }
-                presets = list(preset_map.keys())
-                
-                # Set default preset index based on first node's level
-                current_text = str(noise_levels[0] or "").strip() if noise_levels else ""
-                preset_index = 0
-                if current_text in presets:
-                    preset_index = presets.index(current_text)
-                
-                nl_preset_sel = st.selectbox(
-                    "Preset",
-                    options=presets,
-                    index=preset_index,
-                    key="multi_noise_preset",
-                    format_func=lambda x: preset_map.get(x, x),
-                )
-                
-                nl_custom_sel = st.text_input(
-                    "Custom (optional: overrides preset if non-empty)",
-                    value="",
-                    key="multi_noise_custom",
-                    placeholder="e.g. 1 or 2 or 1,2",
-                )
-                
-                if st.button("Apply noise level to all", key="apply_multi_noise_btn", width="stretch"):
-                    new_text = (nl_custom_sel or "").strip() if (nl_custom_sel or "").strip() else str(nl_preset_sel or "").strip()
-                    if new_text == "(leave as-is)":
-                        new_text = current_text
-                    
-                    success_count = 0
-                    for node_name in sel_nodes2:
-                        node_name = str(node_name).strip()
-                        new_df, ok = df_set_node_noise_level(st.session_state.tray_df, node_name, new_text)
-                        if ok:
-                            st.session_state.tray_df = ensure_xy_columns(new_df)
-                            success_count += 1
-                    
-                    if success_count > 0:
-                        st.session_state.routes_df = None
-                        st.success(f"Updated noise level for {success_count} nodes to: {new_text if new_text else '(blank)'}")
-                        st.session_state.graph_key_v += 1
-                        st.rerun()
-                
                 # Duplicate group
                 if st.button("Duplicate selected group", key="dup_group_btn", width="stretch"):
                     new_df, new_names = df_duplicate_nodes(st.session_state.tray_df, sel_nodes2)
@@ -2660,11 +2559,9 @@ with tabG:
                 node_id = str(sel_nodes2[0]).strip()
                 tdf = st.session_state.tray_df
                 row = tdf[tdf["RunName"].astype(str).str.strip() == node_id]
-                noise_val = ""
                 x_val = y_val = None
                 email_val = phone_val = role_val = notes_val = ""
                 if not row.empty:
-                    noise_val = row.iloc[0].get("Noise Level", "")
                     x_val = row.iloc[0].get("X", pd.NA)
                     y_val = row.iloc[0].get("Y", pd.NA)
                     email_val = str(row.iloc[0].get("Email", "") or "").strip()
@@ -2676,7 +2573,6 @@ with tabG:
                 st.markdown("**Name:**")
                 st.code(node_id, language=None)
                 st.write("**Type:** Person")
-                st.write(f"**Noise Level:** {noise_val if str(noise_val).strip() else 'N/A'}")
                 st.write(f"**X:** {'' if pd.isna(x_val) else x_val}")
                 st.write(f"**Y:** {'' if pd.isna(y_val) else y_val}")
                 if role_val:
@@ -2813,57 +2709,6 @@ with tabG:
                             st.rerun()
                     else:
                         st.warning("Enter a name for the duplicate.")
-
-                st.markdown("**Edit noise level**")
-
-                preset_map = {
-                    "": "(leave as-is)",
-                    "1": "1",
-                    "2": "2",
-                    "1,2": "1,2",
-                    "2,1": "2,1",
-                    "3": "3",
-                    "4": "4",
-                    "3,4": "3,4",
-                    "4,3": "4,3",
-                }
-                presets = list(preset_map.keys())
-
-                current_text = str(noise_val or "").strip()
-                preset_index = 0
-                if current_text in presets:
-                    preset_index = presets.index(current_text)
-
-                nl_preset_sel = st.selectbox(
-                    "Preset",
-                    options=presets,
-                    index=preset_index,
-                    key="sel_noise_preset",
-                    format_func=lambda x: preset_map.get(x, x),
-                )
-
-                nl_custom_sel = st.text_input(
-                    "Custom (optional: overrides preset if non-empty)",
-                    value="",
-                    key="sel_noise_custom",
-                    placeholder="e.g. 1 or 2 or 1,2",
-                )
-
-                if st.button("Apply noise level", key="apply_noise_btn", width="stretch"):
-                    new_text = (nl_custom_sel or "").strip() if (nl_custom_sel or "").strip() else str(nl_preset_sel or "").strip()
-                    if new_text == "(leave as-is)":
-                        new_text = current_text
-
-                    new_df, ok = df_set_node_noise_level(st.session_state.tray_df, node_id, new_text)
-                    if ok:
-                        st.session_state.tray_df = ensure_xy_columns(new_df)
-                        st.session_state.routes_df = None
-                        st.success(f"Updated noise level for {node_id} to: {new_text if new_text else '(blank)'}")
-                        st.session_state.graph_key_v += 1
-                        st.rerun()
-                    else:
-                        st.error("Could not update noise level for the selected node.")
-
             elif sel_edges2:
                 raw_edge = sel_edges2[0]
                 a, b, disp = parse_selected_edge(raw_edge)
@@ -3003,8 +2848,6 @@ with tabG:
 
             with st.expander("➕ Add node", expanded=False):
                 new_node_name = st.text_input("New node name", value="", key="add_node_name")
-                nl_preset = st.selectbox("Noise level (preset)", options=["(leave blank)", "1", "2", "1,2", "3", "4", "3,4"], index=0, key="add_node_nl_preset")
-                nl_custom = st.text_input("Noise level (custom text, optional)", value="", key="add_node_nl_custom")
 
                 p1, p2 = st.columns(2)
                 with p1:
@@ -3017,15 +2860,9 @@ with tabG:
                     if not name:
                         st.warning("Enter a node name.")
                     else:
-                        if (nl_custom or "").strip():
-                            nl_text = nl_custom.strip()
-                        else:
-                            nl_text = "" if nl_preset == "(leave blank)" else nl_preset
-
                         new_df, added = df_add_node(
                             st.session_state.tray_df,
                             name=name,
-                            noise_level_text=nl_text,
                             x=new_x,
                             y=new_y,
                         )
