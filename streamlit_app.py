@@ -693,47 +693,47 @@ def validate_dfs(dfs: dict) -> list[str]:
 
 def build_demo_workbook_bytes() -> bytes:
     tray = pd.DataFrame([
-        {"RunName": "LT-01", "Noise Level": "1",   "Email": "alex@example.com",   "Phone": "555-0101", "Role": "Manager",   "Notes": "Team lead",         "X": pd.NA, "Y": pd.NA},
-        {"RunName": "LT-02", "Noise Level": "1",   "Email": "blair@example.com",  "Phone": "555-0102", "Role": "Developer", "Notes": "Frontend focus",    "X": pd.NA, "Y": pd.NA},
-        {"RunName": "LT-03", "Noise Level": "1",   "Email": "casey@example.com",  "Phone": "555-0103", "Role": "Analyst",   "Notes": "Reports and data",  "X": pd.NA, "Y": pd.NA},
-        {"RunName": "CND-01","Noise Level": "1",   "Email": "drew@example.com",   "Phone": "555-0104", "Role": "Designer",  "Notes": "Visual systems",   "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Alex", "Noise Level": "1",   "Email": "alex@example.com",   "Phone": "555-0101", "Role": "Manager",   "Notes": "Team lead",         "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Blair", "Noise Level": "1",   "Email": "blair@example.com",  "Phone": "555-0102", "Role": "Developer", "Notes": "Frontend focus",    "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Casey", "Noise Level": "1",   "Email": "casey@example.com",  "Phone": "555-0103", "Role": "Analyst",   "Notes": "Reports and data",  "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Drew","Noise Level": "1",   "Email": "drew@example.com",   "Phone": "555-0104", "Role": "Designer",  "Notes": "Visual systems",   "X": pd.NA, "Y": pd.NA},
 
-        {"RunName": "LT-11", "Noise Level": "2",   "Email": "erin@example.com",   "Phone": "555-0105", "Role": "Developer", "Notes": "Backend services", "X": pd.NA, "Y": pd.NA},
-        {"RunName": "LT-12", "Noise Level": "2",   "Email": "flynn@example.com",  "Phone": "555-0106", "Role": "Sales",     "Notes": "Client contact",   "X": pd.NA, "Y": pd.NA},
-        {"RunName": "LT-13", "Noise Level": "2",   "Email": "gray@example.com",   "Phone": "555-0107", "Role": "HR",        "Notes": "People ops",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "CND-02","Noise Level": "2",   "Email": "harper@example.com", "Phone": "555-0108", "Role": "Designer",  "Notes": "Brand work",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Erin", "Noise Level": "2",   "Email": "erin@example.com",   "Phone": "555-0105", "Role": "Developer", "Notes": "Backend services", "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Flynn", "Noise Level": "2",   "Email": "flynn@example.com",  "Phone": "555-0106", "Role": "Sales",     "Notes": "Client contact",   "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Gray", "Noise Level": "2",   "Email": "gray@example.com",   "Phone": "555-0107", "Role": "HR",        "Notes": "People ops",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Harper","Noise Level": "2",   "Email": "harper@example.com", "Phone": "555-0108", "Role": "Designer",  "Notes": "Brand work",       "X": pd.NA, "Y": pd.NA},
 
-        {"RunName": "LT-20", "Noise Level": "1,2", "Email": "indy@example.com",   "Phone": "555-0109", "Role": "Manager",   "Notes": "Cross-team owner", "X": pd.NA, "Y": pd.NA},
-        {"RunName": "CND-20","Noise Level": "1,2", "Email": "jules@example.com",  "Phone": "555-0110", "Role": "Analyst",   "Notes": "Operations",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Indy", "Noise Level": "1,2", "Email": "indy@example.com",   "Phone": "555-0109", "Role": "Manager",   "Notes": "Cross-team owner", "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Jules","Noise Level": "1,2", "Email": "jules@example.com",  "Phone": "555-0110", "Role": "Analyst",   "Notes": "Operations",       "X": pd.NA, "Y": pd.NA},
 
-        {"RunName": "LT-04", "Noise Level": "1",   "Email": "kai@example.com",    "Phone": "555-0111", "Role": "Developer", "Notes": "Automation",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "LT-14", "Noise Level": "2",   "Email": "lane@example.com",   "Phone": "555-0112", "Role": "Other",     "Notes": "Contractor",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Kai", "Noise Level": "1",   "Email": "kai@example.com",    "Phone": "555-0111", "Role": "Developer", "Notes": "Automation",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Lane", "Noise Level": "2",   "Email": "lane@example.com",   "Phone": "555-0112", "Role": "Other",     "Notes": "Contractor",       "X": pd.NA, "Y": pd.NA},
     ])
 
     connections = pd.DataFrame([
-        {"From": "LT-01", "To": "LT-02", "Exposed?": ""},
-        {"From": "LT-02", "To": "LT-03", "Exposed?": ""},
-        {"From": "LT-02", "To": "LT-04", "Exposed?": ""},
-        {"From": "LT-03", "To": "CND-01", "Exposed?": ""},
+        {"From": "Alex", "To": "Blair", "Exposed?": ""},
+        {"From": "Blair", "To": "Casey", "Exposed?": ""},
+        {"From": "Blair", "To": "Kai", "Exposed?": ""},
+        {"From": "Casey", "To": "Drew", "Exposed?": ""},
 
-        {"From": "LT-11", "To": "LT-12", "Exposed?": ""},
-        {"From": "LT-12", "To": "LT-13", "Exposed?": ""},
-        {"From": "LT-12", "To": "LT-14", "Exposed?": ""},
-        {"From": "LT-13", "To": "CND-02", "Exposed?": ""},
+        {"From": "Erin", "To": "Flynn", "Exposed?": ""},
+        {"From": "Flynn", "To": "Gray", "Exposed?": ""},
+        {"From": "Flynn", "To": "Lane", "Exposed?": ""},
+        {"From": "Gray", "To": "Harper", "Exposed?": ""},
 
-        {"From": "CND-01", "To": "LT-20", "Exposed?": ""},
-        {"From": "CND-02", "To": "LT-20", "Exposed?": ""},
-        {"From": "LT-20",  "To": "CND-20", "Exposed?": ""},
+        {"From": "Drew", "To": "Indy", "Exposed?": ""},
+        {"From": "Harper", "To": "Indy", "Exposed?": ""},
+        {"From": "Indy",  "To": "Jules", "Exposed?": ""},
 
-        {"From": "LT-04",  "To": "LT-20", "Exposed?": ""},
-        {"From": "LT-14",  "To": "LT-20", "Exposed?": ""},
+        {"From": "Kai",  "To": "Indy", "Exposed?": ""},
+        {"From": "Lane",  "To": "Indy", "Exposed?": ""},
     ])
 
     endpoints = pd.DataFrame([
-        {"device/panel": "PANEL-A", "tray/conduit(s)": "LT-01,LT-11", "Exposed?": ""},
-        {"device/panel": "PANEL-B", "tray/conduit(s)": "LT-03,LT-13", "Exposed?": "yes"},
-        {"device/panel": "PANEL-C", "tray/conduit(s)": "LT-04",       "Exposed?": ""},
-        {"device/panel": "PANEL-D", "tray/conduit(s)": "LT-14",       "Exposed?": ""},
+        {"device/panel": "PANEL-A", "tray/conduit(s)": "Alex,Erin", "Exposed?": ""},
+        {"device/panel": "PANEL-B", "tray/conduit(s)": "Casey,Gray", "Exposed?": "yes"},
+        {"device/panel": "PANEL-C", "tray/conduit(s)": "Kai",       "Exposed?": ""},
+        {"device/panel": "PANEL-D", "tray/conduit(s)": "Lane",       "Exposed?": ""},
     ])
 
     cables = pd.DataFrame([
