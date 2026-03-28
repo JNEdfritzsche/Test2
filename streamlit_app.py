@@ -10,42 +10,10 @@ from streamlit_vis_network import streamlit_vis_network
 #To run locally: python -m streamlit run .\streamlit_app.py
 
 # ============================================================
-# Noise-level helpers
-# ============================================================
-
-def infer_noise_from_name(run_name: str) -> set[int]:
-    name = str(run_name or "")
-    if "T6" in name:
-        return {1}
-    if "T4" in name:
-        return {2}
-    if "T3" in name:
-        return {3}
-    return set()
-
-def parse_noise_levels(val, run_name=None):
-    if pd.isna(val) or str(val).strip() == "":
-        return infer_noise_from_name(run_name)
-
-    if isinstance(val, (int, float)) and not pd.isna(val):
-        return {int(val)}
-
-    s = str(val).strip()
-    parts = [p.strip() for p in s.split(",")]
-    out = set()
-    for p in parts:
-        if p:
-            try:
-                out.add(int(float(p)))
-            except ValueError:
-                pass
-    return out
-
-# ============================================================
 # Excel I/O helpers
 # ============================================================
 
-REQUIRED_SHEETS = ["Tray", "Connections"]
+REQUIRED_SHEETS = ["People", "Connections"]
 
 def load_excel_to_dfs(file_bytes: bytes) -> tuple[dict, bool]:
     """
@@ -56,18 +24,23 @@ def load_excel_to_dfs(file_bytes: bytes) -> tuple[dict, bool]:
     dfs = {}
 
     for sh in REQUIRED_SHEETS:
-        if sh not in xls.sheet_names:
+        actual_sheet = sh
+        if sh == "People" and sh not in xls.sheet_names and "Tray" in xls.sheet_names:
+            actual_sheet = "Tray"
+        if actual_sheet not in xls.sheet_names:
             raise ValueError(f"Missing required sheet: {sh}")
         converters = None
-        if sh == "Tray":
-            converters = {"RunName": str, "Noise Level": str}
+        if sh == "People":
+            converters = {"RunName": str, "Last Contacted": str}
         elif sh == "Connections":
             converters = {"From": str, "To": str, "Exposed?": str}
 
-        dfs[sh] = pd.read_excel(xls, sh, converters=converters)
+        dfs[sh] = pd.read_excel(xls, actual_sheet, converters=converters)
 
-    if "Tray" in dfs:
-        dfs["Tray"] = ensure_person_columns(ensure_xy_columns(dfs["Tray"]))
+    if "People" in dfs:
+        if "Noise Level" in dfs["People"].columns:
+            dfs["People"] = dfs["People"].drop(columns=["Noise Level"])
+        dfs["People"] = ensure_person_columns(ensure_xy_columns(dfs["People"]))
 
     if "Connections" in dfs:
         if "Exposed?" not in dfs["Connections"].columns and "Exposed Conduit Route?" not in dfs["Connections"].columns:
@@ -89,7 +62,7 @@ def write_updated_workbook_bytes(dfs: dict) -> bytes:
 def validate_dfs(dfs: dict) -> list[str]:
     errors = []
     expected_cols = {
-        "Tray": {"RunName"},
+        "People": {"RunName"},
         "Connections": {"From", "To"},
     }
 
@@ -105,7 +78,7 @@ def validate_dfs(dfs: dict) -> list[str]:
             errors.append(f"{sh}: missing columns {sorted(missing)}")
 
     try:
-        tray_df = dfs.get("Tray")
+        tray_df = dfs.get("People")
         con_df = dfs.get("Connections")
         if tray_df is not None and con_df is not None and not tray_df.empty and not con_df.empty:
             tray_names = set(tray_df["RunName"].astype(str).str.strip())
@@ -113,26 +86,26 @@ def validate_dfs(dfs: dict) -> list[str]:
             to_set = set(con_df["To"].astype(str).str.strip())
             missing_nodes = sorted(n for n in (from_set | to_set) if n and n not in tray_names)
             if missing_nodes:
-                errors.append("Connections: missing Tray.RunName entries for " + ", ".join(missing_nodes))
+                errors.append("Connections: missing People.RunName entries for " + ", ".join(missing_nodes))
     except Exception:
         pass
 
     return errors
 
 def build_demo_workbook_bytes() -> bytes:
-    tray = pd.DataFrame([
-        {"RunName": "Alex", "Noise Level": "1",   "Email": "alex@example.com",   "Phone": "555-0101", "Role": "Manager",   "Notes": "Team lead",         "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Blair", "Noise Level": "1",   "Email": "blair@example.com",  "Phone": "555-0102", "Role": "Developer", "Notes": "Frontend focus",    "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Casey", "Noise Level": "1",   "Email": "casey@example.com",  "Phone": "555-0103", "Role": "Analyst",   "Notes": "Reports and data",  "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Drew",  "Noise Level": "1",   "Email": "drew@example.com",   "Phone": "555-0104", "Role": "Designer",  "Notes": "Visual systems",   "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Erin",  "Noise Level": "2",   "Email": "erin@example.com",   "Phone": "555-0105", "Role": "Developer", "Notes": "Backend services", "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Flynn", "Noise Level": "2",   "Email": "flynn@example.com",  "Phone": "555-0106", "Role": "Sales",     "Notes": "Client contact",   "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Gray",  "Noise Level": "2",   "Email": "gray@example.com",   "Phone": "555-0107", "Role": "HR",        "Notes": "People ops",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Harper","Noise Level": "2",   "Email": "harper@example.com", "Phone": "555-0108", "Role": "Designer",  "Notes": "Brand work",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Indy",  "Noise Level": "1,2", "Email": "indy@example.com",   "Phone": "555-0109", "Role": "Manager",   "Notes": "Cross-team owner", "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Jules", "Noise Level": "1,2", "Email": "jules@example.com",  "Phone": "555-0110", "Role": "Analyst",   "Notes": "Operations",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Kai",   "Noise Level": "1",   "Email": "kai@example.com",    "Phone": "555-0111", "Role": "Developer", "Notes": "Automation",       "X": pd.NA, "Y": pd.NA},
-        {"RunName": "Lane",  "Noise Level": "2",   "Email": "lane@example.com",   "Phone": "555-0112", "Role": "Other",     "Notes": "Contractor",       "X": pd.NA, "Y": pd.NA},
+    people = pd.DataFrame([
+        {"RunName": "Alex",   "Last Contacted": "2026-03-25", "Company": "Northwind",   "LinkedIn Link": "https://linkedin.com/in/alex",   "Email": "alex@example.com",   "Phone": "555-0101", "Role": "Manager",   "Notes": "Team lead",         "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Blair",  "Last Contacted": "2026-03-10", "Company": "Northwind",   "LinkedIn Link": "https://linkedin.com/in/blair",  "Email": "blair@example.com",  "Phone": "555-0102", "Role": "Developer", "Notes": "Frontend focus",    "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Casey",  "Last Contacted": "2026-01-10", "Company": "Northwind",   "LinkedIn Link": "https://linkedin.com/in/casey",  "Email": "casey@example.com",  "Phone": "555-0103", "Role": "Analyst",   "Notes": "Reports and data",  "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Drew",   "Last Contacted": "",           "Company": "Northwind",   "LinkedIn Link": "",                                 "Email": "drew@example.com",   "Phone": "555-0104", "Role": "Designer",  "Notes": "Visual systems",   "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Erin",   "Last Contacted": "2026-03-28", "Company": "Contoso",     "LinkedIn Link": "https://linkedin.com/in/erin",   "Email": "erin@example.com",   "Phone": "555-0105", "Role": "Developer", "Notes": "Backend services", "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Flynn",  "Last Contacted": "2026-02-18", "Company": "Contoso",     "LinkedIn Link": "https://linkedin.com/in/flynn",  "Email": "flynn@example.com",  "Phone": "555-0106", "Role": "Sales",     "Notes": "Client contact",   "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Gray",   "Last Contacted": "2025-12-20", "Company": "Contoso",     "LinkedIn Link": "",                                 "Email": "gray@example.com",   "Phone": "555-0107", "Role": "HR",        "Notes": "People ops",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Harper", "Last Contacted": "invalid",    "Company": "Contoso",     "LinkedIn Link": "https://linkedin.com/in/harper", "Email": "harper@example.com", "Phone": "555-0108", "Role": "Designer",  "Notes": "Brand work",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Indy",   "Last Contacted": "2026-03-01", "Company": "Fabrikam",    "LinkedIn Link": "https://linkedin.com/in/indy",   "Email": "indy@example.com",   "Phone": "555-0109", "Role": "Manager",   "Notes": "Cross-team owner", "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Jules",  "Last Contacted": "2026-02-01", "Company": "Fabrikam",    "LinkedIn Link": "",                                 "Email": "jules@example.com",  "Phone": "555-0110", "Role": "Analyst",   "Notes": "Operations",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Kai",    "Last Contacted": "2026-03-20", "Company": "Fabrikam",    "LinkedIn Link": "https://linkedin.com/in/kai",    "Email": "kai@example.com",    "Phone": "555-0111", "Role": "Developer", "Notes": "Automation",       "X": pd.NA, "Y": pd.NA},
+        {"RunName": "Lane",   "Last Contacted": "2025-11-15", "Company": "Independent", "LinkedIn Link": "",                                 "Email": "lane@example.com",   "Phone": "555-0112", "Role": "Other",     "Notes": "Contractor",       "X": pd.NA, "Y": pd.NA},
     ])
 
     connections = pd.DataFrame([
@@ -153,7 +126,7 @@ def build_demo_workbook_bytes() -> bytes:
 
     out = BytesIO()
     with pd.ExcelWriter(out, engine="openpyxl") as writer:
-        tray.to_excel(writer, sheet_name="Tray", index=False)
+        people.to_excel(writer, sheet_name="People", index=False)
         connections.to_excel(writer, sheet_name="Connections", index=False)
     out.seek(0)
     return out.getvalue()
@@ -180,7 +153,7 @@ IMAGE_SIZE = 32
 
 PROBE_ID = "__POS_PROBE__"
 
-PERSON_COLUMNS = ["Email", "Phone", "Role", "Notes"]
+PERSON_COLUMNS = ["Last Contacted", "Company", "LinkedIn Link", "Email", "Phone", "Role", "Notes"]
 
 HIGHLIGHT_BORDER_WIDTH = 10
 HIGHLIGHT_BORDER_COLOR = "#FF00FF"
@@ -210,11 +183,21 @@ def tray_has_any_xy(tray_df: pd.DataFrame) -> bool:
     mask = xs.notna() & ys.notna()
     return bool(mask.any())
 
-def noise_title(run_name: str, noise_val) -> str:
-    lv = parse_noise_levels(noise_val, run_name=run_name)
-    if not lv:
-        return "Noise Levels: N/A"
-    return "Noise Levels: " + ",".join(str(x) for x in sorted(lv))
+def contact_status(last_contacted) -> tuple[str, str]:
+    raw = "" if pd.isna(last_contacted) else str(last_contacted).strip()
+    if not raw:
+        return "unknown", "Last Contacted: N/A"
+
+    dt = pd.to_datetime(raw, errors="coerce")
+    if pd.isna(dt):
+        return "unknown", f"Last Contacted: {raw} (invalid date)"
+
+    days = (pd.Timestamp.now().normalize() - dt.normalize()).days
+    if days <= 30:
+        return "recent", f"Last Contacted: {dt.date()} ({days} days ago)"
+    if days <= 90:
+        return "aging", f"Last Contacted: {dt.date()} ({days} days ago)"
+    return "stale", f"Last Contacted: {dt.date()} ({days} days ago)"
 
 def infer_type_from_name(name: str) -> str:
     s = str(name).upper()
@@ -395,16 +378,9 @@ def split_diamond_svg(size: int, left_color: str, right_color: str, border: str 
     </svg>
     """.strip()
 
-def noise_color_kind(levels: set[int]) -> str:
-    if levels == {1}:
-        return "nl1"
-    if levels == {2}:
-        return "nl2"
-    if levels == {3} or levels == {4}:
-        return "nl34"
-    if (1 in levels) and (2 in levels):
-        return "mixed12"
-    return "other"
+def contact_color_kind(last_contacted) -> str:
+    status, _ = contact_status(last_contacted)
+    return status
 
 def build_adjacency(connections_df: pd.DataFrame) -> dict[str, set[str]]:
     adj = defaultdict(set)
@@ -472,21 +448,21 @@ def build_vis_nodes_edges(
         is_focus = (focus_node is not None and rn == str(focus_node).strip())
         is_highlight = rn in highlight_nodes
 
-        levels = parse_noise_levels(r.get("Noise Level", None), run_name=rn)
-        kind = noise_color_kind(levels)
+        last_contacted = r.get("Last Contacted", "")
+        kind = contact_color_kind(last_contacted)
+        company = str(r.get("Company", "") or "").strip()
+        linkedin_link = str(r.get("LinkedIn Link", "") or "").strip()
         email = str(r.get("Email", "") or "").strip()
         phone = str(r.get("Phone", "") or "").strip()
         role = str(r.get("Role", "") or "").strip()
         notes = str(r.get("Notes", "") or "").strip()
 
-        if kind == "nl1":
-            svg = person_circle_svg(84, ORANGE, NODE_BORDER_COLOR)
-        elif kind == "nl2":
+        if kind == "recent":
             svg = person_circle_svg(84, GREEN, NODE_BORDER_COLOR)
-        elif kind == "nl34":
+        elif kind == "aging":
             svg = person_circle_svg(84, YELLOW, NODE_BORDER_COLOR)
-        elif kind == "mixed12":
-            svg = person_circle_svg(84, "#72BF44", NODE_BORDER_COLOR)
+        elif kind == "stale":
+            svg = person_circle_svg(84, ORANGE, NODE_BORDER_COLOR)
         else:
             svg = person_circle_svg(84, GRAY, NODE_BORDER_COLOR)
 
@@ -495,6 +471,9 @@ def build_vis_nodes_edges(
             "label": rn,
             "title": (
                 f"<b>{rn}</b><br/>Person node"
+                + (f"<br/>{contact_status(last_contacted)[1]}" if str(last_contacted).strip() else "<br/>Last Contacted: N/A")
+                + (f"<br/>Company: {company}" if company else "")
+                + (f"<br/>LinkedIn: {linkedin_link}" if linkedin_link else "")
                 + (f"<br/>Role: {role}" if role else "")
                 + (f"<br/>Email: {email}" if email else "")
                 + (f"<br/>Phone: {phone}" if phone else "")
@@ -1196,7 +1175,7 @@ if file_bytes is not None:
         if st.session_state.upload_hash != this_hash:
             loaded, is_older_template = load_excel_to_dfs(file_bytes)
 
-            tdf_loaded = ensure_xy_columns(loaded["Tray"])
+            tdf_loaded = ensure_xy_columns(loaded["People"])
             st.session_state.tray_df = tdf_loaded
             st.session_state.connections_df = loaded["Connections"]
             st.session_state.upload_hash = this_hash
@@ -1229,7 +1208,7 @@ st.session_state.tray_df = ensure_xy_columns(st.session_state.tray_df)
 st.session_state.tray_df = ensure_person_columns(st.session_state.tray_df)
 
 dfs = {
-    "Tray": st.session_state.tray_df,
+    "People": st.session_state.tray_df,
     "Connections": st.session_state.connections_df,
 }
 
@@ -1239,17 +1218,20 @@ if val_errors:
     for e in val_errors:
         st.write(f"- {e}")
 
-tab1, tab2, tabG = st.tabs(["Tray", "Connections", "Graph Editor"])
+tab1, tab2, tabG = st.tabs(["People", "Connections", "Graph Editor"])
 
 with tab1:
-    st.subheader("Tray")
-    st.caption("X and Y store node positions. Email, phone, role, and notes store person-style metadata for each node.")
+    st.subheader("People")
+    st.caption("Manage people data here. Icon color in the graph is based on Last Contacted, while X and Y store node positions.")
     st.session_state.tray_df = st.data_editor(
-        ensure_person_columns(st.session_state.tray_df),
+        ensure_person_columns(st.session_state.tray_df).drop(columns=["Noise Level"], errors="ignore"),
         num_rows="dynamic",
         width="stretch",
         key="tray_editor",
         column_config={
+            "Last Contacted": st.column_config.TextColumn("Last Contacted", help="Use a date like 2026-03-28"),
+            "Company": st.column_config.TextColumn("Company"),
+            "LinkedIn Link": st.column_config.TextColumn("LinkedIn Link"),
             "Email": st.column_config.TextColumn("Email"),
             "Phone": st.column_config.TextColumn("Phone"),
             "Role": st.column_config.TextColumn("Role"),
@@ -1448,12 +1430,12 @@ with tabG:
             st.session_state.tray_df = apply_positions_to_tray(st.session_state.tray_df, positions)
             st.session_state.initial_layout_autosave_active = False
             st.session_state.graph_key_v += 1
-            st.success("Initial layout locked in and saved to Tray (X/Y).")
+            st.success("Initial layout locked in and saved to People (X/Y).")
             st.rerun()
 
     with tools_col:
         # Save button (OUTSIDE scrollable container - stays visible when scrolling)
-        save_clicked = st.button("💾 Save current node positions to Tray (X/Y)", key="save_positions_btn", width="stretch")
+        save_clicked = st.button("💾 Save current node positions to People (X/Y)", key="save_positions_btn", width="stretch")
         save_notice_slot = st.empty()
         
         # Scrollable tools container
@@ -1462,7 +1444,7 @@ with tabG:
             if st.session_state.layout_unsaved_hint and (not st.session_state.layout_opt_active):
                 st.warning(
                     "You have **unsaved node position changes**.\n\n"
-                    "Click **Save current node positions to Tray (X/Y)** to store the new layout in the workbook."
+                    "Click **Save current node positions to People (X/Y)** to store the new layout in the workbook."
                 )
 
             st.markdown("### Selection")
@@ -1578,10 +1560,13 @@ with tabG:
                 tdf = st.session_state.tray_df
                 row = tdf[tdf["RunName"].astype(str).str.strip() == node_id]
                 x_val = y_val = None
-                email_val = phone_val = role_val = notes_val = ""
+                last_contacted_val = company_val = linkedin_val = email_val = phone_val = role_val = notes_val = ""
                 if not row.empty:
                     x_val = row.iloc[0].get("X", pd.NA)
                     y_val = row.iloc[0].get("Y", pd.NA)
+                    last_contacted_val = str(row.iloc[0].get("Last Contacted", "") or "").strip()
+                    company_val = str(row.iloc[0].get("Company", "") or "").strip()
+                    linkedin_val = str(row.iloc[0].get("LinkedIn Link", "") or "").strip()
                     email_val = str(row.iloc[0].get("Email", "") or "").strip()
                     phone_val = str(row.iloc[0].get("Phone", "") or "").strip()
                     role_val = str(row.iloc[0].get("Role", "") or "").strip()
@@ -1593,6 +1578,11 @@ with tabG:
                 st.write("**Type:** Person")
                 st.write(f"**X:** {'' if pd.isna(x_val) else x_val}")
                 st.write(f"**Y:** {'' if pd.isna(y_val) else y_val}")
+                st.write(f"**Last Contacted:** {last_contacted_val if last_contacted_val else 'N/A'}")
+                if company_val:
+                    st.write(f"**Company:** {company_val}")
+                if linkedin_val:
+                    st.write(f"**LinkedIn Link:** {linkedin_val}")
                 if role_val:
                     st.write(f"**Role:** {role_val}")
                 if email_val:
@@ -1603,12 +1593,18 @@ with tabG:
                     st.write(f"**Notes:** {notes_val}")
 
                 st.markdown("**Edit Person Details**")
+                edit_last_contacted = st.text_input("Last Contacted", value=last_contacted_val, key="sel_edit_last_contacted")
+                edit_company = st.text_input("Company", value=company_val, key="sel_edit_company")
+                edit_linkedin = st.text_input("LinkedIn Link", value=linkedin_val, key="sel_edit_linkedin")
                 edit_email = st.text_input("Email", value=email_val, key="sel_edit_email")
                 edit_phone = st.text_input("Phone", value=phone_val, key="sel_edit_phone")
                 edit_role = st.text_input("Role", value=role_val, key="sel_edit_role")
                 edit_notes = st.text_area("Notes", value=notes_val, key="sel_edit_notes")
                 if st.button("Save person details", key="save_person_details_btn", width="stretch"):
                     node_mask = st.session_state.tray_df["RunName"].astype(str).str.strip() == node_id
+                    st.session_state.tray_df.loc[node_mask, "Last Contacted"] = edit_last_contacted
+                    st.session_state.tray_df.loc[node_mask, "Company"] = edit_company
+                    st.session_state.tray_df.loc[node_mask, "LinkedIn Link"] = edit_linkedin
                     st.session_state.tray_df.loc[node_mask, "Email"] = edit_email
                     st.session_state.tray_df.loc[node_mask, "Phone"] = edit_phone
                     st.session_state.tray_df.loc[node_mask, "Role"] = edit_role
@@ -1852,7 +1848,7 @@ with tabG:
                     st.session_state.layout_unsaved_hint = False
 
                     # Keep message visible + immediately refresh graph instance
-                    st.session_state.save_positions_notice = ("success", "✅ Positions saved to Tray (X/Y).")
+                    st.session_state.save_positions_notice = ("success", "✅ Positions saved to People (X/Y).")
 
                     # IMPORTANT: prevent the forced refresh from being interpreted as "user interaction"
                     st.session_state.graph_interaction_sig = None
@@ -1901,7 +1897,7 @@ with tabG:
     st.divider()
     st.caption(
         "If the workbook loads with blank X/Y, the app will automatically lock in the FIRST layout once. "
-        "After that, positions only change when you click **Save current node positions to Tray (X/Y)**."
+        "After that, positions only change when you click **Save current node positions to People (X/Y)**."
     )
     st.caption(
         "**Multi-select:** Hold **Shift** and left-click drag to select multiple nodes together."
